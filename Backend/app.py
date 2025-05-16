@@ -38,13 +38,12 @@ class Student(db.Model):
     Bio = db.Column(db.String(100), unique=False, nullable=False)
     Created_At = db.Column(db.DateTime, default=datetime.utcnow)
 
-with app.app_context():
-    db.create_all()
 
 images_path = "Images"
 if not os.path.exists(images_path):
     os.makedirs(images_path)
     
+rand_id = []
 data_dict = {}
 
 for image_name in os.listdir(images_path):
@@ -78,4 +77,82 @@ def camera_stream():
                     socketio.emit('camera_frame', {'image': frame_bytes})
         time.sleep(0.1)
         
-print("End Working")
+@app.route('/api/students', methods=['POST'])
+def add_student():
+    data = request.json
+    try:
+        new_num = None
+        while True:
+            new_num = random.randint(10**9, 10**10-1)
+            if new_num not in rand_id:
+                rand_id.append(new_num)
+                break
+        
+        student = Student(
+            Name=data['Name'].upper(),
+            Reg_No=data['Reg_No'],
+            DOB=datetime.strptime(data['DOB'], '%Y-%m-%d').date(),  # Convert string to date
+            Blood_Group=data['Blood_Group'],
+            Phone=data['Phone'],
+            Dept=data['Dept'],
+            Gender=data['Gender'],
+            Bio=data.get('Bio', '')  # Optional default if Bio is missing
+        )
+        db.session.add(student)
+        db.session.commit()
+        return jsonify({
+            'message': 'Student added successfully',
+            'student': {
+                'Name': student.Name,
+                'Reg_No': student.Reg_No,
+                'DOB': student.DOB,
+                'Blood_Group': student.Blood_Group,
+                'Phone': student.Phone,
+                'Dept': student.Dept,
+                'Gender': student.Gender,    
+                'Bio': student.Bio
+            }
+        }), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 400
+    
+@socketio.on('scan_card')
+def handle_card_scan(data):
+    card_id = data.get('card_id')
+    student = Student.query.filter_by(Card_Id=card_id).first()
+
+    if student:
+        socketio.emit('card_scanned', {
+            'success': True,
+            'student': {
+                'Name': student.Name,
+                'Reg_No': student.Reg_No,
+                'DOB': student.DOB,
+                'Blood_Group': student.Blood_Group,
+                'Phone': student.Phone,
+                'Dept': student.Dept,
+                'Gender': student.Gender,    
+                'Bio': student.Bio
+            },
+            'message': 'Student found!'
+        })
+    else:
+        socketio.emit('card_scanned', {
+            'success': False,
+            'message': 'Card not found!'
+        })
+
+
+@socketio.on('connect')
+def handle_connect():
+    print('Client connected')
+
+@socketio.on('disconnect')
+def handle_disconnect():
+    print('Client disconnected')
+
+if __name__ == '__main__':
+    with app.app_context():
+        db.create_all()
+    socketio.run(app, host='0.0.0.0', debug=True, port=5000)
