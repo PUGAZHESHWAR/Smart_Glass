@@ -181,6 +181,43 @@ def get_unassigned_cards():
                        if student.id not in assigned_cards]
     return jsonify(unassigned_cards)
 
+@app.route('/api/capture-image', methods=['POST'])
+def capture_image():
+    global camera
+    try:
+        data = request.json
+        card_id = data.get('card_id')
+        
+        if not card_id:
+            return jsonify({'error': 'Card ID is required'}), 400
+            
+        if camera is None:
+            return jsonify({'error': 'Camera is not started'}), 400
+            
+        success, frame = camera.read()
+        if not success:
+            return jsonify({'error': 'Failed to capture image'}), 500
+
+        image_path = os.path.join(images_path, f"{card_id}.jpg")
+        cv2.imwrite(image_path, frame)
+        camera.release()
+
+        image = face_recognition.load_image_file(image_path)
+        face_encodings = face_recognition.face_encodings(image)
+        
+        if face_encodings:
+            if card_id not in data_dict:
+                data_dict[card_id] = []
+            data_dict[card_id].append(face_encodings[0].tolist())
+            socketio.emit('image_captured', {'success': True})
+            return jsonify({'message': 'Image captured and saved successfully'}), 200
+        else:
+            os.remove(image_path) 
+            return jsonify({'error': 'No face detected in the captured image'}), 400
+            
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/assign-image', methods=['POST'])
 def assign_image():
     try:
