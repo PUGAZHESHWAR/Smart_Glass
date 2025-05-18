@@ -65,6 +65,35 @@ camera = None
 camera_thread = None
 stop_camera = False
 
+@app.route('/api/start-camera', methods=['POST'])
+def start_camera():
+    global camera, camera_thread, stop_camera
+    try:
+        if camera is None:
+            camera = cv2.VideoCapture(0)
+            if not camera.isOpened():
+                return jsonify({'error': 'Failed to open camera'}), 500
+            stop_camera = False
+            camera_thread = threading.Thread(target=camera_stream)
+            camera_thread.start()
+        return jsonify({'message': 'Camera started successfully'}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/stop-camera', methods=['POST'])
+def stop_camera_route():
+    global camera, camera_thread, stop_camera
+    try:
+        if camera is not None:
+            stop_camera = True
+            if camera_thread is not None:
+                camera_thread.join()
+            camera.release()
+            camera = None
+        return jsonify({'message': 'Camera stopped successfully'}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 def camera_stream():
     global camera, stop_camera
     while not stop_camera:
