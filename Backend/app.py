@@ -143,6 +143,48 @@ def handle_card_scan(data):
             'message': 'Card not found!'
         })
 
+@app.route('/api/unassigned-cards', methods=['GET'])
+def get_unassigned_cards():
+    assigned_cards = {int(os.path.splitext(f)[0] ) for f in os.listdir(images_path) 
+                     if f.endswith(('.jpg', '.png', '.jpeg'))}
+    all_students = Student.query.all()
+    unassigned_cards = [student.id for student in all_students 
+                       if student.id not in assigned_cards]
+    return jsonify(unassigned_cards)
+
+@app.route('/api/assign-image', methods=['POST'])
+def assign_image():
+    try:
+        data = request.json
+        card_id = data.get('card_id')
+        image_data = data.get('image') 
+
+        if not card_id or not image_data:
+            return jsonify({'error': 'Card ID and image data are required'}), 400
+
+        if 'base64,' in image_data:
+            image_data = image_data.split('base64,')[1]
+
+        image_bytes = base64.b64decode(image_data)
+
+        image_path = os.path.join(images_path, f"{card_id}.jpg")
+        with open(image_path, 'wb') as f:
+            f.write(image_bytes)
+
+        image = face_recognition.load_image_file(image_path)
+        face_encodings = face_recognition.face_encodings(image)
+        
+        if face_encodings:
+            if card_id not in data_dict:
+                data_dict[card_id] = []
+            data_dict[card_id].append(face_encodings[0].tolist())
+            return jsonify({'message': 'Image assigned successfully'}), 200
+        else:
+            os.remove(image_path)
+            return jsonify({'error': 'No face detected in the image'}), 400
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @socketio.on('connect')
 def handle_connect():
