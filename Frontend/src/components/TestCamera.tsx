@@ -32,6 +32,8 @@ const TestCamera: React.FC = () => {
         identified: data.identified,
         name: data.student_name
       });
+      console.log("[Socket] Recognition Result:", data);
+      console.log(recognitionStatus)
     });
     
     return () => {
@@ -53,12 +55,15 @@ const TestCamera: React.FC = () => {
         await apiService.stopCamera();
         setIsCameraActive(false);
         setRecognitionStatus(null);
+        socket.emit('stop_face_recognition');
       } else {
         const response = await apiService.startCamera();
         if (response.error) {
           setErrorMessage(response.error);
         } else {
           setIsCameraActive(true);
+          socket.emit('perform_face_recognition');
+          console.log("Camera Activated")
         }
       }
     } catch (error) {
@@ -68,6 +73,7 @@ const TestCamera: React.FC = () => {
       setProcessingCommand(false);
     }
   };
+
 
   return (
     <div className="max-w-2xl mx-auto p-6">
