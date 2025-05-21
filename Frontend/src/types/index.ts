@@ -1,13 +1,15 @@
 export interface Student {
   id?: number;
   Name: string;
+  Organization: string;
+  Performance: string;
   Reg_No: string;
   DOB: string;
   Blood_Group: string;
   Phone: string;
   Dept: string;
   Gender: string;
-  Bio: string;
+  Remarks: string;
   Created_At?: string;
 }
 
