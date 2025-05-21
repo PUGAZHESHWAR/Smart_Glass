@@ -105,7 +105,68 @@ def camera_stream():
                     frame_bytes = base64.b64encode(buffer).decode('utf-8')
                     socketio.emit('camera_frame', {'image': frame_bytes})
         time.sleep(0.1)
-        
+
+recognition_thread = None
+recognition_running = False
+
+def background_face_recognition():
+    global camera, recognition_running
+
+    print("[DEBUG] Face recognition thread started")
+
+    with app.app_context():
+        while recognition_running:
+            try:
+                if camera is None:
+                    print("[DEBUG] No camera available")
+                    time.sleep(1)
+                    continue
+
+                success, frame = camera.read()
+                if not success:
+                    print("[DEBUG] Could not read frame from camera")
+                    time.sleep(1)
+                    continue
+
+                rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                face_locations = face_recognition.face_locations(rgb_frame)
+                face_encodings = face_recognition.face_encodings(rgb_frame, face_locations)
+
+                if not face_encodings:
+                    print("[DEBUG] No face detected")
+                    socketio.emit('face_recognition_result', {
+                        'face_detected': False,
+                        'identified': False,
+                        'student_name': None
+                    })
+                else:
+                    unknown_encoding = face_encodings[0]
+                    identified = False
+                    matched_name = None
+
+                    for card_id, encodings in data_dict.items():
+                        known_encodings = [np.array(enc) for enc in encodings]
+                        results = face_recognition.compare_faces(known_encodings, unknown_encoding, tolerance=0.45)
+                        if True in results:
+                            identified = True
+                            student = Student.query.filter_by(id=int(card_id)).first()
+                            if student:
+                                matched_name = student.Name
+                            break
+
+                    print(f"[DEBUG] Emitting: detected=True, identified={identified}, name={matched_name}")
+                    socketio.emit('face_recognition_result', {
+                        'face_detected': True,
+                        'identified': identified,
+                        'student_name': matched_name
+                    })
+
+            except Exception as e:
+                print(f"[ERROR] Exception in recognition thread: {e}")
+
+            time.sleep(1/3)  # Process ~3 times per second
+
+
 @app.route('/api/students', methods=['POST'])
 def add_student():
     data = request.json
@@ -217,6 +278,21 @@ def capture_image():
             
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+    
+@socketio.on('perform_face_recognition')
+def handle_face_recognition_trigger():
+    global recognition_thread, recognition_running
+
+    if not recognition_running:
+        recognition_running = True
+        recognition_thread = threading.Thread(target=background_face_recognition)
+        recognition_thread.start()
+
+@socketio.on('stop_face_recognition')
+def stop_face_recognition():
+    global recognition_running
+    recognition_running = False
+
 
 @app.route('/api/assign-image', methods=['POST'])
 def assign_image():
