@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { apiService } from '../api/apiService';
-import { Camera, Upload, Check, AlertCircle, Loader2 } from 'lucide-react';
+import { Camera, Upload, Check, AlertCircle, Loader2, CameraOff } from 'lucide-react';
 import io from 'socket.io-client';
 
 const socket = io('http://localhost:5000');
