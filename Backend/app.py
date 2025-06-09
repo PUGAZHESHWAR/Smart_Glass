@@ -16,6 +16,36 @@ import base64
 import threading
 from werkzeug.utils import secure_filename
 from flask import render_template
+from flask import Flask
+from flask_sqlalchemy import SQLAlchemy
+
+
+db = SQLAlchemy()
+def create_app():
+    app = Flask(__name__)
+    app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    
+    db.init_app(app)
+    
+    with app.app_context():
+        # Clear existing models to prevent redefinition errors
+        db.reflect()
+        db.drop_all()
+        
+        # Define your models
+        class Profile(db.Model):
+            id = db.Column(db.Integer, primary_key=True)
+            institution_name = db.Column(db.String(100), nullable=False)
+            logo_filename = db.Column(db.String(100), nullable=True)
+            created_at = db.Column(db.DateTime, default=datetime.utcnow)
+        
+        # Create tables
+        db.create_all()
+    
+    return app
+
+app = create_app()
 
 load_dotenv()
 
@@ -48,6 +78,15 @@ class Student(db.Model):
     Remarks = db.Column(db.String(100), unique=False, nullable=False)
     Created_At = db.Column(db.DateTime, default=datetime.utcnow)
 
+class Profile(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    institution_name = db.Column(db.String(100), nullable=False)
+    logo_filename = db.Column(db.String(100), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+with app.app_context():
+    db.create_all()
 
 images_path = "Images"
 if not os.path.exists(images_path):
@@ -87,12 +126,36 @@ def home():
 def get_profile():
     profile = Profile.query.order_by(Profile.created_at.desc()).first()
     if not profile:
-        return jsonify({'error': 'No profile found'}), 404
+        return jsonify({
+            'institution_name': 'Default Institution',
+            'logo_url': None
+        })
     return jsonify({
         'institution_name': profile.institution_name,
-        'logo_url': f"/{app.config['UPLOAD_FOLDER']}/{profile.logo_filename}" if profile.logo_filename else None
+        'logo_url': f"/static/uploads/{profile.logo_filename}" if profile.logo_filename else None
     })
 
+@app.route('/api/set-profile', methods=['POST'])
+def set_profile():
+    institution_name = request.form.get('institution_name')
+    logo = request.files.get('logo')
+
+    if not institution_name:
+        return jsonify({'error': 'Institution name is required'}), 400
+
+    filename = None
+    if logo:
+        filename = secure_filename(logo.filename)
+        logo.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+
+    profile = Profile(institution_name=institution_name, logo_filename=filename)
+    db.session.add(profile)
+    db.session.commit()
+
+    return jsonify({
+        'message': 'Profile created successfully',
+        'logo_url': f"/static/uploads/{filename}" if filename else None
+    }), 201
 @app.route('/api/start-camera', methods=['POST'])
 def start_camera():
     global camera, camera_thread, stop_camera
@@ -408,3 +471,136 @@ if __name__ == '__main__':
         db.create_all()
     socketio.run(app, host='0.0.0.0', debug=True, port=5000)
     
+# EDITED 
+from flask import Flask, request, jsonify, render_template
+from flask_cors import CORS
+from flask_socketio import SocketIO
+from flask_sqlalchemy import SQLAlchemy
+from datetime import datetime, date
+from sqlalchemy import and_
+import os
+import face_recognition
+from dotenv import load_dotenv
+import numpy as np
+import random
+import cv2
+import platform
+import time
+import base64
+import threading
+from werkzeug.utils import secure_filename
+
+# Load environment variables first
+load_dotenv()
+
+# Initialize extensions
+db = SQLAlchemy()
+socketio = SocketIO()
+
+def create_app():
+    app = Flask(__name__)
+    
+    # Configuration
+    app.config['UPLOAD_FOLDER'] = 'static/uploads'
+    app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///app.db')  # Default to SQLite if not set
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    
+    # Initialize extensions with app
+    CORS(app)
+    db.init_app(app)
+    socketio.init_app(app, cors_allowed_origins="*")
+    
+    # Define models
+    class Profile(db.Model):
+        id = db.Column(db.Integer, primary_key=True)
+        institution_name = db.Column(db.String(100), nullable=False)
+        logo_filename = db.Column(db.String(100), nullable=True)
+        created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    class Student(db.Model):
+        id = db.Column(db.Integer, primary_key=True)
+        Name = db.Column(db.String(20), nullable=False)
+        Reg_No = db.Column(db.String(10), unique=True, nullable=False)
+        DOB = db.Column(db.Date, nullable=False)
+        Blood_Group = db.Column(db.String(5), nullable=False)
+        Phone = db.Column(db.String(10), unique=True, nullable=False)
+        Dept = db.Column(db.String(10), nullable=False)
+        Gender = db.Column(db.String(10), nullable=False)
+        Organization = db.Column(db.String(100), nullable=True)
+        Performance = db.Column(db.String(100), nullable=True)
+        Remarks = db.Column(db.String(100), nullable=False)
+        Created_At = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # Create database tables
+    with app.app_context():
+        db.create_all()
+        
+        # Initialize face recognition data
+        images_path = "Images"
+        if not os.path.exists(images_path):
+            os.makedirs(images_path)
+            
+        rand_id = []
+        data_dict = {}
+
+        for image_name in os.listdir(images_path):
+            if image_name.endswith(('.jpg', '.png', '.jpeg')):
+                card_id = os.path.splitext(image_name)[0]  
+                image_path = os.path.join(images_path, image_name)
+                image = face_recognition.load_image_file(image_path)
+                face_encodings = face_recognition.face_encodings(image)
+
+                if face_encodings:
+                    if card_id not in data_dict:
+                        data_dict[card_id] = []
+                    data_dict[card_id].append(face_encodings[0])
+
+        for key in data_dict:
+            data_dict[key] = [encoding.tolist() for encoding in data_dict[key]]
+
+    # Global variables for camera
+    camera = None
+    camera_thread = None
+    stop_camera = False
+    recognition_thread = None
+    recognition_running = False
+
+    # Import routes after app is created to avoid circular imports
+    from . import routes
+    app.register_blueprint(routes.bp)
+
+    return app
+
+app = create_app()
+
+# Routes
+@app.route('/')
+def home():
+    print("[DEBUG] Home page loaded")
+    return render_template('home.html')
+
+@app.route('/api/get-profile')
+def get_profile():
+    profile = Profile.query.order_by(Profile.created_at.desc()).first()
+    if not profile:
+        return jsonify({
+            'institution_name': 'Default Institution',
+            'logo_url': None
+        })
+    return jsonify({
+        'institution_name': profile.institution_name,
+        'logo_url': f"/static/uploads/{profile.logo_filename}" if profile.logo_filename else None
+    })
+
+# ... (keep all your other route definitions as they are)
+
+if __name__ == '__main__':
+    # Ensure the upload folder exists
+    if not os.path.exists(app.config['UPLOAD_FOLDER']):
+        os.makedirs(app.config['UPLOAD_FOLDER'])
+    
+    # Ensure the images folder exists
+    if not os.path.exists("Images"):
+        os.makedirs("Images")
+    
+    socketio.run(app, host='0.0.0.0', debug=True, port=5000)

@@ -1,5 +1,6 @@
 import React from 'react';
-import { Camera, UserPlus, UserCheck } from 'lucide-react';
+import { Camera, UserPlus, UserCheck, Settings as SettingsIcon } from 'lucide-react';
+import { useProfile } from '../context/ProfileContext';
 
 interface NavbarProps {
   activeTab: string;
@@ -7,15 +8,27 @@ interface NavbarProps {
 }
 
 const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
+  const { institutionName, logoUrl } = useProfile();
+
   return (
     <nav className="bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg">
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between py-3">
-          <div className="flex items-center space-x-2">
-            <Camera className="h-6 w-6" />
-            <span className="text-xl font-bold">FaceID System</span>
+          <div className="flex items-center space-x-4">
+            {logoUrl && (
+              <img 
+                src={logoUrl} 
+                alt="Institution Logo" 
+                className="h-10 w-10 object-contain rounded-full border-2 border-white"
+              />
+            )}
+            <div className="flex flex-col">
+              <span className="text-xl font-bold">{institutionName || 'FaceID System'}</span>
+              <span className="text-xs opacity-80">Smart Recognition System</span>
+            </div>
           </div>
           
+          {/* Rest of your Navbar code remains the same */}
           <div className="hidden md:flex space-x-1">
             <NavButton 
               active={activeTab === 'add-student'} 
@@ -34,6 +47,12 @@ const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
               onClick={() => setActiveTab('assign')}
               icon={<UserCheck className="h-4 w-4 mr-2" />}
               text="Assign Face"
+            />
+            <NavButton 
+              active={activeTab === 'settings'} 
+              onClick={() => setActiveTab('settings')}
+              icon={<SettingsIcon className="h-4 w-4 mr-2" />}
+              text="Settings"
             />
           </div>
         </div>
@@ -60,6 +79,13 @@ const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
               onClick={() => setActiveTab('assign')}
               icon={<UserCheck className="h-4 w-4" />}
               text="Assign"
+              mobile
+            />
+            <NavButton 
+              active={activeTab === 'settings'} 
+              onClick={() => setActiveTab('settings')}
+              icon={<SettingsIcon className="h-4 w-4" />}
+              text="Settings"
               mobile
             />
           </div>
