@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import Navbar from './components/Navbar';
 import AddStudentForm from './components/AddStudentForm';
 import TestCamera from './components/TestCamera';
 import AssignFace from './components/AssignFace';
+import Settings from './components/Settings';
 
 function App() {
   const [activeTab, setActiveTab] = useState('add-student');
@@ -15,6 +16,8 @@ function App() {
         return <TestCamera />;
       case 'assign':
         return <AssignFace />;
+      case 'settings':
+        return <Settings />; {/* Removed onSave prop */}
       default:
         return <AddStudentForm />;
     }

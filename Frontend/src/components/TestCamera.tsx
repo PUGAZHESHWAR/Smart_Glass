@@ -1,9 +1,21 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { apiService } from '../api/apiService';
-import { Camera, CameraOff, User, AlertCircle } from 'lucide-react';
+import { Camera, CameraOff, User, AlertCircle, X } from 'lucide-react';
 import io from 'socket.io-client';
 
 const socket = io('http://localhost:5000');
+
+interface StudentDetails {
+  Name: string;
+  Reg_No: string;
+  DOB: string;
+  Blood_Group: string;
+  Phone: string;
+  Dept: string;
+  Gender: string;
+  Bio: string;
+}
 
 const TestCamera: React.FC = () => {
   const [isCameraActive, setIsCameraActive] = useState(false);
@@ -13,38 +25,42 @@ const TestCamera: React.FC = () => {
     detected: boolean;
     identified: boolean;
     name?: string;
+    student?: StudentDetails;
   } | null>(null);
+  const [showDetailsPopup, setShowDetailsPopup] = useState(false);
   
   const videoRef = useRef<HTMLImageElement>(null);
   
-  useEffect(() => {
-    // Listen for camera frames from the server
-    socket.on('camera_frame', (data) => {
-      if (videoRef.current) {
-        videoRef.current.src = `data:image/jpeg;base64,${data.image}`;
-      }
+useEffect(() => {
+  socket.on('camera_frame', (data) => {
+    if (videoRef.current) {
+      videoRef.current.src = `data:image/jpeg;base64,${data.image}`;
+    }
+  });
+  
+  socket.on('face_recognition_result', (data) => {
+    setRecognitionStatus({
+      detected: data.face_detected,
+      identified: data.identified,
+      name: data.student_name,
+      student: data.student
     });
-    
-    // Listen for face recognition results
-    socket.on('face_recognition_result', (data) => {
-      setRecognitionStatus({
-        detected: data.face_detected,
-        identified: data.identified,
-        name: data.student_name
-      });
-      console.log("[Socket] Recognition Result:", data);
-      console.log(recognitionStatus)
-    });
-    
-    return () => {
-      // Clean up on component unmount
-      socket.off('camera_frame');
-      socket.off('face_recognition_result');
-      
-      // Make sure to stop the camera when component unmounts
-      apiService.stopCamera().catch(console.error);
-    };
-  }, []);
+
+    // Only show popup when a new student is identified
+    if (data.identified && data.student) {
+      setShowDetailsPopup(true);
+    } else if (!data.identified || !data.face_detected) {
+      // Close popup when no face is detected or not identified
+      setShowDetailsPopup(false);
+    }
+  });
+  
+  return () => {
+    socket.off('camera_frame');
+    socket.off('face_recognition_result');
+    apiService.stopCamera().catch(console.error);
+  };
+}, []);
   
   const toggleCamera = async () => {
     setProcessingCommand(true);
@@ -55,6 +71,7 @@ const TestCamera: React.FC = () => {
         await apiService.stopCamera();
         setIsCameraActive(false);
         setRecognitionStatus(null);
+        setShowDetailsPopup(false);
         socket.emit('stop_face_recognition');
       } else {
         const response = await apiService.startCamera();
@@ -63,7 +80,6 @@ const TestCamera: React.FC = () => {
         } else {
           setIsCameraActive(true);
           socket.emit('perform_face_recognition');
-          console.log("Camera Activated")
         }
       }
     } catch (error) {
@@ -74,6 +90,15 @@ const TestCamera: React.FC = () => {
     }
   };
 
+const closePopup = () => {
+  setShowDetailsPopup(false);
+  // Reset recognition status to prevent immediate reopening
+  setRecognitionStatus(prev => prev ? {
+    ...prev,
+    identified: false,
+    student: undefined
+  } : null);
+};
 
   return (
     <div className="max-w-2xl mx-auto p-6">
@@ -130,7 +155,6 @@ const TestCamera: React.FC = () => {
             </div>
           )}
           
-          {/* Face recognition status overlay */}
           {recognitionStatus && (
             <div className={`absolute bottom-0 left-0 right-0 p-3 
               ${recognitionStatus.identified 
@@ -165,6 +189,78 @@ const TestCamera: React.FC = () => {
           </ol>
         </div>
       </div>
+
+      {/* Student Details Popup */}
+      {showDetailsPopup && recognitionStatus?.identified && recognitionStatus?.student && (
+       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center border-b p-4">
+              <h3 className="text-xl font-bold text-gray-800">
+                Student Details
+              </h3>
+              <button 
+                onClick={closePopup}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+            
+            <div className="p-6">
+              <div className="space-y-4">
+                <div>
+                  <p className="text-sm text-gray-500">Name</p>
+                  <p className="font-medium">{recognitionStatus.student.Name}</p>
+                </div>
+                
+                <div>
+                  <p className="text-sm text-gray-500">Registration Number</p>
+                  <p className="font-medium">{recognitionStatus.student.Reg_No}</p>
+                </div>
+                
+                <div>
+                  <p className="text-sm text-gray-500">Date of Birth</p>
+                  <p className="font-medium">{recognitionStatus.student.DOB}</p>
+                </div>
+                
+                <div>
+                  <p className="text-sm text-gray-500">Blood Group</p>
+                  <p className="font-medium">{recognitionStatus.student.Blood_Group}</p>
+                </div>
+                
+                <div>
+                  <p className="text-sm text-gray-500">Phone</p>
+                  <p className="font-medium">{recognitionStatus.student.Phone}</p>
+                </div>
+                
+                <div>
+                  <p className="text-sm text-gray-500">Department</p>
+                  <p className="font-medium">{recognitionStatus.student.Dept}</p>
+                </div>
+                
+                <div>
+                  <p className="text-sm text-gray-500">Gender</p>
+                  <p className="font-medium">{recognitionStatus.student.Gender}</p>
+                </div>
+                
+                <div>
+                  <p className="text-sm text-gray-500">Bio</p>
+                  <p className="font-medium">{recognitionStatus.student.Bio}</p>
+                </div>
+              </div>
+              
+              <div className="mt-6 flex justify-end">
+                <button
+                  onClick={closePopup}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -52,18 +52,20 @@ const AssignFace: React.FC = () => {
     };
   }, [isCameraActive]);
   
-  const fetchUnassignedCards = async () => {
-    try {
-      const cards = await apiService.getUnassignedCards();
-      setUnassignedCards(cards);
-    } catch (error) {
-      console.error('Error fetching unassigned cards:', error);
-      setStatusMessage({
-        type: 'error',
-        message: 'Failed to fetch unassigned student IDs'
-      });
-    }
-  };
+const fetchUnassignedCards = async () => {
+  try {
+    console.log('Attempting to fetch unassigned cards...');
+    const cards = await apiService.getUnassignedCards();
+    console.log('Received cards:', cards);
+    setUnassignedCards(cards);
+  } catch (error) {
+    console.error('Full error details:', error);
+    setStatusMessage({
+      type: 'error',
+      message: 'Failed to fetch unassigned student IDs. Please check your connection and try again.'
+    });
+  }
+};
   
   const toggleCamera = async () => {
     setIsProcessing(true);

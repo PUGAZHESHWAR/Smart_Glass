@@ -3,21 +3,23 @@ import { apiService } from '../api/apiService';
 import { AlertCircle, Check } from 'lucide-react';
 import { Student } from '../types';
 
-const departments = ['CSE', 'ECE', 'EEE', 'MECH', 'CIVIL', 'IT'];
+const departments = ['AI&DS','CSE', 'ECE', 'EEE', 'MECH', 'CIVIL', 'IT'];
 const bloodGroups = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 
 const AddStudentForm: React.FC = () => {
   const [formData, setFormData] = useState<Student>({
     Name: '',
+    Organization: '',
     Reg_No: '',
+    Performance: '',
     DOB: '',
     Blood_Group: '',
     Phone: '',
     Dept: '',
     Gender: '',
-    Bio: '',
+    Remarks: '',
   });
-  
+
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStatus, setSubmitStatus] = useState<{ success: boolean; message: string } | null>(null);
@@ -26,7 +28,9 @@ const AddStudentForm: React.FC = () => {
     const newErrors: Record<string, string> = {};
     
     if (!formData.Name.trim()) newErrors.Name = 'Name is required';
+    if (!formData.Organization.trim()) newErrors.Organization = 'Name is required';
     if (!formData.Reg_No.trim()) newErrors.Reg_No = 'Registration number is required';
+    if (!formData.Performance.trim()) newErrors.Performance = 'Name is required';
     if (!formData.DOB) newErrors.DOB = 'Date of birth is required';
     if (!formData.Blood_Group) newErrors.Blood_Group = 'Blood group is required';
     if (!formData.Phone.trim()) {
@@ -78,13 +82,15 @@ const AddStudentForm: React.FC = () => {
         // Reset form on success
         setFormData({
           Name: '',
+          Organization: '',
           Reg_No: '',
+          Performance: '',
           DOB: '',
           Blood_Group: '',
           Phone: '',
           Dept: '',
           Gender: '',
-          Bio: ''
+          Remarks: ''
         });
       }
     } catch (error) {
@@ -134,7 +140,39 @@ const AddStudentForm: React.FC = () => {
             />
             {errors.Name && <p className="mt-1 text-sm text-red-600">{errors.Name}</p>}
           </div>
-          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Name of the University/Institution/Organization/School:
+            </label>
+            <input
+              type="text"
+              name="Organization"
+              value={formData.Organization}
+              onChange={handleChange}
+              className={`w-full px-3 py-2 border rounded-md ${
+                errors.Organization ? 'border-red-500' : 'border-gray-300'
+              } focus:outline-none focus:ring-2 focus:ring-blue-500`}
+              placeholder="e.g. Stekom University, IIT Madras, CBSE School, Infosys"
+            />
+            {errors.Organization && <p className="mt-1 text-sm text-red-600">{errors.Organization}</p>}
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Performance of the student :
+            </label>
+            <input
+              type="text"
+              name="Performance"
+              value={formData.Performance}
+              onChange={handleChange}
+              className={`w-full px-3 py-2 border rounded-md ${
+                errors.Perormance ? 'border-red-500' : 'border-gray-300'
+              } focus:outline-none focus:ring-2 focus:ring-blue-500`}
+              placeholder="Grade, CGPA, Percentage, etc."
+            />
+            {errors.Performance && <p className="mt-1 text-sm text-red-600">{errors.Performance}</p>}
+          </div>
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Registration Number
@@ -271,11 +309,11 @@ const AddStudentForm: React.FC = () => {
         
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Bio <span className="text-gray-500 text-xs">(Optional)</span>
+            Remarks <span className="text-gray-500 text-xs">(Optional)</span>
           </label>
           <textarea
-            name="Bio"
-            value={formData.Bio}
+            name="Remarks"
+            value={formData.Remarks}
             onChange={handleChange}
             rows={3}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
